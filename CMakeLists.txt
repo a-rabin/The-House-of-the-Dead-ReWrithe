@@ -116,6 +116,7 @@ set(HOTD_GAME_SOURCES
     src/game/scene_view.cpp
     src/game/free_cam.cpp
     src/game/photo_mode.cpp
+    src/game/debug_window.cpp
     src/net/net_game.cpp
     src/net/online_menu.cpp
     src/net/rollback.cpp)

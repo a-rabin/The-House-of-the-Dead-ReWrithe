@@ -58,6 +58,31 @@ void Runtime::debug_halt()
     throw Halt{};
 }
 
+// the live debug window's opcode trace (game/debug_window.h): the port's evt_run calls this for every instruction it
+// runs. Recorded only while the window is open (traceEnabled): the ring's size is bounded, so a long game cannot
+// grow it without end
+void Runtime::evt_trace(uint32_t pc, uint32_t opcode)
+{
+    if (!traceEnabled)
+        return;
+    EvtTraceEntry e;
+    e.pc = pc;
+    e.opcode = opcode;
+    e.handler = mem.u32(G::evt_handlers + opcode * 4);
+    e.frame = frameCount;
+    auto it = names.find(e.handler);
+    if (it != names.end())
+        e.handlerName = it->second;
+    else {
+        char buf[24];
+        std::snprintf(buf, sizeof buf, "op %u", opcode);
+        e.handlerName = buf;
+    }
+    evtTrace.push_back(e);
+    while (evtTrace.size() > kEvtTraceMax)
+        evtTrace.pop_front();
+}
+
 // ---------------------------------------------------------------------------------------------------------------
 // The heap (mem_alloc, mem_free ...) and task_create_child / task_clear_work: the port's (src/port/tasks.cpp,
 // proofs-7). Tasks: +0 routine, +4 exit routine, +8 serial, +0xC magic, +0x10 / +0x14 the ring (prev / next), +0x18

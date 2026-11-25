@@ -10,10 +10,15 @@ namespace hotd {
 namespace {
 
 constexpr size_t kBody = 0x28;   // BODY data in the file; every offset is relative to it
-constexpr uint32_t kEnd = 0xFFFFFFFF;
+constexpr uint32_t kEnd = kEvtEnd;
 
-// operand counts (tools/evt_dis.py SPEC): -1 = list ended by -1, -2 = CCTB (by sub-operation)
-int operands(uint32_t op)
+int32_t s32(uint32_t v) { return int32_t(v); }
+
+} // namespace
+
+// operand counts (tools/evt_dis.py SPEC): -1 = list ended by -1, -2 = CCTB (by sub-operation). Declared in the header
+// so the live debug window's disassembler shares this one table with the interpreter
+int evtOperandCount(uint32_t op)
 {
     switch (op) {
     case 93: case 16: case 83: case 92: case 66: case 26: return 0;
@@ -26,10 +31,6 @@ int operands(uint32_t op)
     default: return -3;   // unknown: data (after the last NEXTEV)
     }
 }
-
-int32_t s32(uint32_t v) { return int32_t(v); }
-
-} // namespace
 
 bool EventScripts::load(const std::string& path, std::string& err)
 {
@@ -107,7 +108,7 @@ std::vector<ZoneSpan> EventScripts::zoneSpans(int list) const
         int zone = 0, last = 0, area = out.empty() ? -1 : out.back().area;
         for (int guard = 0; guard < 20000; ++guard) {
             const uint32_t op = word(pc);
-            const int n = operands(op);
+            const int n = evtOperandCount(op);
             if (n == -3) break;
             if (n == -1) {
                 uint32_t o = pc + 4;
@@ -143,7 +144,7 @@ bool EventRunner::execute(int alive)
     for (int guard = 0; guard < 10000; ++guard) {
         if (pc_ >= end_) return false;
         const uint32_t op = scripts_->word(pc_);
-        const int n = operands(op);
+        const int n = evtOperandCount(op);
         auto arg = [&](int k) { return scripts_->word(pc_ + 4 * uint32_t(k)); };
         if (n == -3) return false;   // the event's data: end of code
         if (n == -1) {               // list ended by -1

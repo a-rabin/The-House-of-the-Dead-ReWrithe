@@ -89,6 +89,7 @@
 #include "game/jukebox.h"
 #include "game/scene_view.h"
 #include "game/photo_mode.h"
+#include "game/debug_window.h"
 #include "game/menu_pages.h"
 #include "game/preview_art.h"
 #include "game/pause.h"
@@ -8494,6 +8495,13 @@ int main(int argc, char* argv[])
         }
     }
     bool running = true, paused = false, step = false, shot = false, debugLines = devLines;
+    // the live debug window (game/debug_window.h): the creatures, the scene, the event script's opcodes and the
+    // runtime's counters, live. F2 opens it (the overlay over the picture and a window of its own); Tab changes its
+    // page. Off by default; it only reads the game's memory
+    game::DebugWindow debugWindow;
+    // the window's snapshot, refreshed once a game frame (the same one feeds the overlay and the separate window, so
+    // the two views can never disagree); stale frames keep the previous one
+    game::DebugSnapshot gDebugSnapshot;
     // the PC port's in-game pause (game/pause.h, THOTD.EXE 0x41ADF0 ..): Escape / P in play; `paused` mirrors it
     game::Pause pause;
     game::PauseInput pauseIn;   // this loop's edges
@@ -16409,6 +16417,16 @@ int main(int argc, char* argv[])
                 shot = true;
             continue;
         }
+        // the live debug window (game/debug_window.h): its snapshot of the game now (the same one feeds the overlay
+        // and the separate window), and the separate window's own events and draw
+        if (debugWindow.open) {
+            gDebugSnapshot = debugWindow.collect(rt);
+            SDL_Event de;
+            while (SDL_PollEvent(&de))
+                if (debugWindow.handleEvent(de))
+                    break;
+            debugWindow.drawSeparate(gDebugSnapshot);
+        }
         // during play the mouse stays inside the window while it has the focus (with two monitors it slid onto the other
         // one, where a shot went to another program); Alt+Tab / the launcher / the end screen let it go
         {
@@ -16956,6 +16974,13 @@ int main(int argc, char* argv[])
                 }
                 else if (e.key.key == SDLK_F12) shot = true;
                 else if (e.key.key == SDLK_F1 && (devLines || devKeys || !playerRun)) debugLines = !debugLines;   // (remakefix: a player run: only with --dev-lines / --dev-keys)
+                else if (e.key.key == SDLK_F2 && !e.key.repeat) {   // the live debug window (game/debug_window.h): F2 on / off
+                    debugWindow.toggle(window);
+                    host.runtime().traceEnabled = debugWindow.open;   // the opcode trace records only while it is open
+                    SDL_Log("debug window %s", debugWindow.open ? "on (F2 closes, Tab changes the page)" : "off");
+                }
+                else if (e.key.key == SDLK_TAB && debugWindow.open && !e.key.repeat)
+                    debugWindow.nextPage();
                 else if ((e.key.key == SDLK_1 || e.key.key == SDLK_2) && (e.key.mod & SDL_KMOD_CTRL) && fe.cheatsOn() && !gNet) {
                     // the PC's SKIDMARX cheat (pc_main_loop 0x419168: Ctrl + 1 / 2 toggle bit 1 / 2 of 0x5CCEF8, then
                     // pc_gun_input refills that player's rounds and lives; docs/teaser_status/pc_cheats.md)
@@ -18050,6 +18075,10 @@ int main(int argc, char* argv[])
             }
         }
         auto drawOverlays = [&]() {
+            // the live debug window (game/debug_window.h): its panels over the picture (the separate window's own
+            // draw is below, outside this function)
+            if (debugWindow.open)
+                debugWindow.drawOverlay(gDebugSnapshot, ww, wh);
             // The Typing of the Dead 0: the prompts over the enemies, the typing line, the chapter's typing results
             // (not over the pause menu, the cut-scene viewer)
             if (gTotd && gTyping && !gNet && view && !paused && !gScene.active() && rt.mem.at<int16_t>(game::A::G::game_mode) == 4) {

@@ -87,6 +87,7 @@ template <class P> void Game<P>::evt_run(uint32_t task)
             evt_attract_restore(pc);   // Attract Gore: the PC's prologue spawns Revision A dropped (off: nothing)
         }
         mem.set32(G::evt_opcode, op);
+        evt_trace(pc, op);   // the live debug window's opcode trace (no-op unless it is open)
         evt_call(mem.u32(G::evt_handlers + op * 4));
     } while (mem.u32(G::evt_yield) == 0);
 }

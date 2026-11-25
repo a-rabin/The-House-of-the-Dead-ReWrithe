@@ -157,6 +157,20 @@ public:
     // docs/teaser_status/pc_cheats.md); cheatRounds / cheatLives: the most seen since it was switched on
     int cheatInfinite = 0, cheatRounds[2] = {}, cheatLives[2] = {};
 
+    // the live debug window (game/debug_window.h): a bounded trace of the event-script instructions the interpreter
+    // ran (the port's evt_trace hook, src/port/event.cpp), newest last. Recorded only while `traceEnabled` (the
+    // window is open): the hook is a no-op otherwise, so a normal game pays nothing. The disassembler reads the
+    // operands at `pc` from memory when it needs them.
+    struct EvtTraceEntry {
+        uint32_t pc = 0, opcode = 0, handler = 0;
+        uint64_t frame = 0;
+        std::string handlerName;   // the handler's name ("evt_ENTB") as it was recorded
+    };
+    bool traceEnabled = false;
+    void evt_trace(uint32_t pc, uint32_t opcode) override;   // 0x66AD0's loop (the port's) + the ring
+    std::deque<EvtTraceEntry> evtTrace;
+    static constexpr size_t kEvtTraceMax = 512;
+
     void frame();                    // one game frame (game_play -> game_frame); Boss Mode: its undrawn walk-up too
     void frame_one();                // exactly one game frame
     // the cut-scene viewer (game/scene_view.h): the player cut-scene running now (players 1 / 2's scene routines, as

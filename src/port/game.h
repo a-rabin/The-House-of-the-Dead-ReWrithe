@@ -129,6 +129,9 @@ public:
     // Horde Mode (ours, hordepub: user 2026-11-09 "weapons and ammo from shooting crates / breakable props"): told of each
     // prop broken for good (its last break step, where its item drops). Nothing here: a normal game and the proofs
     virtual void prop_broken(uint32_t obj) { (void)obj; }
+    // the live debug window (game/debug_window.h): told of every event-script instruction the interpreter runs (its
+    // address and its opcode). Nothing here: a normal game and the proofs have no effect
+    virtual void evt_trace(uint32_t pc, uint32_t opcode) { (void)pc, (void)opcode; }
     bool coop4_on() const
     {
         if constexpr (Seats<P>::max == 4)

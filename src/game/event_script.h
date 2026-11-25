@@ -18,6 +18,14 @@ struct SpawnRecord {
     int path = -1;           // camera path current when the record was queued (runner)
 };
 
+// the word that ends a list in the scripts (and BODY reads past it)
+constexpr uint32_t kEvtEnd = 0xFFFFFFFF;
+
+// the operand counts by opcode (tools/evt_dis.py SPEC, from the handlers' code): 0, 1 or 2 fixed; -1 = a list ended
+// by kEvtEnd; -2 = CCTB (by sub-operation); -3 = unknown (the event's data tables follow, not code). Kept here so
+// the interpreter and the live debug window's disassembler share ONE table
+int evtOperandCount(uint32_t op);
+
 // A camera segment (CCTB 64) and the draw zone in force while it plays (the last BGTB before it).
 struct ZoneSpan { int path = 0, start = 0, end = 0, zone = 0, area = -1; };   // area: last TEXCHG (-1 = the chapter's first)
 
