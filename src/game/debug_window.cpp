@@ -227,7 +227,7 @@ std::vector<std::string> DebugWindow::panelLines(const DebugSnapshot& s) const
         std::snprintf(buf, sizeof buf, "evt pc %s  opcode %u  %s", hex(s.evtPc).c_str(), s.evtOpcode, s.evtName.c_str());
         lines.push_back(buf);
         break;
-    case DebugPage::Opcodes:
+    case DebugPage::Opcodes: {
         std::snprintf(buf, sizeof buf, "pc %s  op %u  %s", hex(s.evtPc).c_str(), s.evtOpcode, s.evtName.c_str());
         lines.push_back(buf);
         // the disassembly of the current section, the executing instruction marked
@@ -253,6 +253,7 @@ std::vector<std::string> DebugWindow::panelLines(const DebugSnapshot& s) const
                 break;
         }
         break;
+    }
     case DebugPage::Debug:
         std::snprintf(buf, sizeof buf, "frame %llu  mode %d / %d  drawn %zu  shootable %zu",
                       static_cast<unsigned long long>(s.frame), s.mode, s.submode, s.drawList, s.shootable);
@@ -346,7 +347,7 @@ bool DebugWindow::handleEvent(const SDL_Event& ev)
 {
     if (!separate_)
         return false;
-    if (ev.type == SDL_EVENT_WINDOW_CLOSE && ev.window.windowID == SDL_GetWindowID(separate_)) {
+    if (ev.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED && ev.window.windowID == SDL_GetWindowID(separate_)) {
         closeSeparate();
         return true;
     }

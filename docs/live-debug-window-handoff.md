@@ -1,15 +1,17 @@
-# Live debug window — handoff (in progress)
+# Live debug window — handoff (verified)
 
-Status as of 2026-11-25: implementation complete, **not yet verified** (the final
-compile and live smoke test are outstanding). Branch `live-debug-window`, commit
-`3fc5264` ("Add a live debug window (in-progress)"), based on `main` / `db219c6`.
+Status as of 2026-11-27: implementation complete and **verified** — the build
+succeeds, the new unit suite passes, and a headless run with the real arcade ROMs
+showed all four pages populated with live data (including named creatures whose
+HP changes as shots land, and an opcode trace that advances frame by frame).
+Branch `live-debug-window`, based on `main` / `db219c6`.
 
 Pushed to the fork `https://github.com/a-rabin/The-House-of-the-Dead-ReWrithe`
 (remote `myfork`), branch URL:
 <https://github.com/a-rabin/The-House-of-the-Dead-ReWrithe/tree/live-debug-window>.
 Direct push to upstream `TawhidI-602/...` is not possible: the only authenticated
 GitHub account is `a-rabin`, which has read but not write access there. Open a PR
-from the fork once verified.
+from the fork.
 
 ## What this is
 
@@ -45,35 +47,42 @@ only, and has no effect on game logic.
 | `src/port/game.h`, `src/port/event.cpp` | new `virtual void evt_trace(pc, opcode)` hook, called from `Game<P>::evt_run`. No-op by default: proofs / normal games are unaffected. |
 | `src/game/runtime.h`, `src/game/runtime.cpp` | `Runtime` overrides it into a bounded ring buffer (`kEvtTraceMax` = 512), recorded **only** while `traceEnabled` (the window is open). |
 | `src/game/event_script.h`, `src/game/event_script.cpp` | `evtOperandCount()` / `kEvtEnd` exported from the header so the interpreter and the disassembler share ONE operand table. |
-| `src/main.cpp` | `DebugWindow debugWindow` + `gDebugSnapshot` declared in `main()`; F2/Tab key handling; per-frame snapshot + separate-window event pump/draw; `drawOverlay()` hook. |
+| `src/main.cpp` | `DebugWindow debugWindow` + `gDebugSnapshot` declared in `main()`; F2/Tab key handling; per-frame snapshot + separate-window event pump/draw; `drawOverlay()` hook; a `HOTD_DEBUG_TRACE` headless dump of the same panels for smoke tests. |
 | `CMakeLists.txt` | `src/game/debug_window.cpp` added to `HOTD_GAME_SOURCES`. |
+| `tests/unit/test_debug.cpp` (new), `tests/CMakeLists.txt` | unit suite `debug`: the operand table, the disassembler's walk, and the bounded trace ring. |
 
 ## Remaining work (in order)
 
-1. **Build.** A build directory exists, configured with:
-   ```
-   cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
-         -DHOTD_FETCH_SDL3=ON -DHOTD_FETCH_STB=ON
-   cmake --build build --target hotd -j$(nproc)
-   ```
-   `-DHOTD_FETCH_SDL3=ON` is required (no system SDL3 here; first configure takes
-   ~2 minutes). `-DHOTD_FETCH_STB=ON` is required because with OGG support off
-   `src/game/audio.cpp` fails with a **pre-existing, unrelated** error
-   (`Music` has no members `rate`/`total`) — that reconfigure was done, but the
-   build was not rerun. **`debug_window.cpp` has never been compiled yet.**
-2. **Fix compile errors** in the new code, then verify `hotd` links.
-3. **Live smoke test**: start a game, F2, confirm all four pages populate and the
-   overlay and separate window show identical text; check the opcode trace moves
-   as the event script runs. Headless path (no game files needed to reach the
-   menu): `./build/hotd --no-launcher --frames N` plus the repo's existing
-   `HOTD_TRACE_*` / `HOTD_DRAW_HASH` tooling.
-4. **No-regression check**: with the window closed the trace hook must be a
-   no-op; compare frame hashes with the existing differential tooling.
-5. **Squash / rebase into `main`** once verified, then open a PR from the fork.
+## Verification done (2026-11-27)
+
+- **Build**: `cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+  -DHOTD_FETCH_SDL3=ON -DHOTD_FETCH_STB=ON` then `cmake --build build --target hotd`.
+  `debug_window.cpp` compiles cleanly and `hotd` links. `-DHOTD_FETCH_SDL3=ON` is
+  required (no system SDL3 here; first configure takes ~2 minutes).
+  `-DHOTD_FETCH_STB=ON` is required because with OGG off `src/game/audio.cpp`
+  fails with a **pre-existing, unrelated** error (`Music` has no `rate`/`total`).
+- **Unit tests**: new suite `debug` (`tests/unit/test_debug.cpp`) covers the shared
+  operand table, the disassembler's instruction walk (fixed / list / CCTB shapes,
+  the current-instruction mark, the data-section terminator) and the bounded trace
+  ring. `./build/hotd_unit debug`: 3 tests, 30 checks, 0 failed. The full suite:
+  61 tests, 348,392 checks, 0 failed; `ctest -L unit`: 15/15 passed.
+- **Live smoke test** with real arcade ROMs:
+  `HOTD_DEBUG_TRACE=PICK ./build/hotd --arcade /home/adrian/Desktop/Games/hotd.zip
+  --frames 90 --autofire --mute --no-title` printed all four pages. A longer run
+  (`HOTD_DEBUG_TRACE=1 --frames 1800`) showed named live creatures (Neil, Cyril)
+  with HP changing as shots landed and the opcode trace advancing frame by frame.
+  `HOTD_DEBUG_TRACE` is a headless trace of the same snapshot and panel lines the
+  two views use, so it needs no GPU.
+
+## Remaining work
+
+1. **Optional**: verify the two graphical views in an interactive window (F2
+   toggles; Tab cycles Monsters / Scene / Opcodes / Debug) — the headless trace
+   verifies the shared data and text, but not GL/SDL presentation.
+2. **Squash / rebase into `main`**, then open a PR from the fork.
 
 ## Notes
 
-- The commit message records the same "unverified" status; this doc is the fuller
-  handoff. Everything above is reconstructible from the code — keep this file
-  focused on status and the order of remaining steps.
+- The first commit message says "in-progress"; later commits carry the fixes and
+  verification. This doc is the fuller handoff.
 - When editing, match the surrounding code's comment density and idiom.

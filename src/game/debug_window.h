@@ -22,6 +22,7 @@
 
 struct SDL_Window;
 struct SDL_Renderer;
+union SDL_Event;
 
 namespace hotd::game {
 

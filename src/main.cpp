@@ -3685,6 +3685,35 @@ int runHeadless(game::Host& host, int frames, bool fire, const std::vector<uint6
             --i;
             continue;
         }
+        // the live debug window (game/debug_window.h): a headless trace of its panels (the same snapshot and lines the
+        // overlay and the separate window show), for smoke tests without a GPU. HOTD_DEBUG_TRACE=1 dumps every 60
+        // frames; HOTD_DEBUG_TRACE=PICK prints one snapshot of each page when the game is first in play
+        if (static const char* dbgt = std::getenv("HOTD_DEBUG_TRACE"); dbgt) {
+            const bool pick = std::strcmp(dbgt, "PICK") == 0;
+            static bool picked[4] = {};
+            static game::DebugWindow traceWin;
+            const bool dump = pick ? rt.mem.at<int16_t>(game::A::G::game_mode) == 4 &&
+                                         int(rt.mem.at<int8_t>(game::A::G::chapter)) == 0 &&
+                                         rt.mem.at<int8_t>(game::A::G::event_index) == 0 &&
+                                         rt.frameCount > 30
+                                   : rt.frameCount % 60 == 0;
+            if (dump) {
+                traceWin.open = true;
+                rt.traceEnabled = true;
+                for (int pg = 0; pg < 4; ++pg) {
+                    if (pick && picked[pg])
+                        continue;
+                    traceWin.page = game::DebugPage(pg);
+                    const game::DebugSnapshot snap = traceWin.collect(rt);
+                    std::printf("DEBUG WINDOW %s (frame %llu)\n", traceWin.panelTitle().c_str(), (unsigned long long)snap.frame);
+                    for (const std::string& l : traceWin.panelLines(snap))
+                        std::printf("  %s\n", l.c_str());
+                    if (pick)
+                        picked[pg] = true;
+                }
+                std::fflush(stdout);
+            }
+        }
         if (std::getenv("HOTD_TRACE_COUNTS") && rt.frameCount % 300 == 0) {   // T1: live enemies along the route
             std::printf("frame %llu event %d alive %d count %d op %s cam sub %u slots", (unsigned long long)rt.frameCount,
                         rt.mem.at<int8_t>(game::A::G::event_index), rt.mem.at<int16_t>(game::A::G::enemies_alive),

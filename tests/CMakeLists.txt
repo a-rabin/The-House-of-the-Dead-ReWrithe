@@ -16,7 +16,8 @@ set(HOTD_UNIT_SOURCES
     unit/test_rollback.cpp
     unit/test_modes.cpp
     unit/test_charsel.cpp
-    unit/test_natpunch.cpp)
+    unit/test_natpunch.cpp
+    unit/test_debug.cpp)
 add_executable(hotd_unit ${HOTD_UNIT_SOURCES})
 # the game's objects (everything but main.cpp: nothing in them needs it), the same ones hotd links
 target_link_libraries(hotd_unit PRIVATE hotd_game_obj)
@@ -42,7 +43,7 @@ endif()
 
 # one CTest test per suite (a new suite: add its name here). "langdone" (the translations' to-do: keys of en.txt not
 # translated yet) is labelled "translation", not "unit": a gap for the translators, not a fault (CI leaves it out)
-set(HOTD_UNIT_SUITES util launcher lang mods files vr net rollback typing weapons survival evdev charsel)
+set(HOTD_UNIT_SUITES util launcher lang mods files vr net rollback typing weapons survival evdev charsel debug)
 set(HOTD_UNIT_TRANSLATION_SUITES langdone)
 foreach(s ${HOTD_UNIT_SUITES} ${HOTD_UNIT_TRANSLATION_SUITES})
     set(_label unit)
