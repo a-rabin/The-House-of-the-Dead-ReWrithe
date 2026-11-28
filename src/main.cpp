@@ -16447,15 +16447,10 @@ int main(int argc, char* argv[])
             continue;
         }
         // the live debug window (game/debug_window.h): its snapshot of the game now (the same one feeds the overlay
-        // and the separate window), and the separate window's own events and draw
-        if (debugWindow.open) {
+        // and the separate window). Do NOT poll SDL events here: the game's own event loop below owns the queue, and
+        // draining it here starves the game of its input (F2 then looks like a freeze)
+        if (debugWindow.open)
             gDebugSnapshot = debugWindow.collect(rt);
-            SDL_Event de;
-            while (SDL_PollEvent(&de))
-                if (debugWindow.handleEvent(de))
-                    break;
-            debugWindow.drawSeparate(gDebugSnapshot);
-        }
         // during play the mouse stays inside the window while it has the focus (with two monitors it slid onto the other
         // one, where a shot went to another program); Alt+Tab / the launcher / the end screen let it go
         {
@@ -16806,6 +16801,10 @@ int main(int argc, char* argv[])
         if (gTotd && gTyping && !gNet && !feAttract && screen == Screen::Game && !SDL_TextInputActive(window))
             SDL_StartTextInput(window);
         while (SDL_PollEvent(&e)) {
+            // the live debug window's own events (its close button) are handled here, inside the game's event loop:
+            // never drain the SDL queue elsewhere, or the game stops receiving its input
+            if (debugWindow.handleEvent(e))
+                continue;
             if (gVr && gVr->backend()->event(e))   // vr: the preview's head keys (docs/vr.md)
                 continue;
             if (gScene.active() && !feAttract && sceneEvent(e))
@@ -16992,6 +16991,18 @@ int main(int argc, char* argv[])
                 else if (isFullscreenKey(e))   // fullscreen on / off
                     toggleFullscreen(window);
                 else if (e.key.key == SDLK_N && devLines) step = true;   // developer: one game frame while paused
+                // the live debug window (game/debug_window.h): F2 / Tab work in play and while paused (they are the
+                // developer's view, not the player's input, so they go before the paused catch-all)
+                else if (e.key.key == SDLK_F2 && !e.key.repeat) {
+                    debugWindow.toggle(window);
+                    host.runtime().traceEnabled = debugWindow.open;   // the opcode trace records only while it is open
+                    SDL_GL_MakeCurrent(window, ctx);   // the second SDL window may have taken the current context
+                    SDL_Log("debug window %s", debugWindow.open ? "on (F2 closes, Tab changes the page)" : "off");
+                }
+                else if (e.key.key == SDLK_TAB && debugWindow.open && !e.key.repeat) {
+                    if (rt.name_entry_active()) rt.name_entry_key(9);
+                    else debugWindow.nextPage();
+                }
                 else if (e.key.key == SDLK_F7 && !e.key.repeat) {   // trailer: Trailer Mode on / off (this run only)
                     gTrailer = !gTrailer;
                     gTrailerNote = std::max<uint64_t>(SDL_GetTicks(), 1);
@@ -17003,13 +17014,6 @@ int main(int argc, char* argv[])
                 }
                 else if (e.key.key == SDLK_F12) shot = true;
                 else if (e.key.key == SDLK_F1 && (devLines || devKeys || !playerRun)) debugLines = !debugLines;   // (remakefix: a player run: only with --dev-lines / --dev-keys)
-                else if (e.key.key == SDLK_F2 && !e.key.repeat) {   // the live debug window (game/debug_window.h): F2 on / off
-                    debugWindow.toggle(window);
-                    host.runtime().traceEnabled = debugWindow.open;   // the opcode trace records only while it is open
-                    SDL_Log("debug window %s", debugWindow.open ? "on (F2 closes, Tab changes the page)" : "off");
-                }
-                else if (e.key.key == SDLK_TAB && debugWindow.open && !e.key.repeat)
-                    debugWindow.nextPage();
                 else if ((e.key.key == SDLK_1 || e.key.key == SDLK_2) && (e.key.mod & SDL_KMOD_CTRL) && fe.cheatsOn() && !gNet) {
                     // the PC's SKIDMARX cheat (pc_main_loop 0x419168: Ctrl + 1 / 2 toggle bit 1 / 2 of 0x5CCEF8, then
                     // pc_gun_input refills that player's rounds and lives; docs/teaser_status/pc_cheats.md)
@@ -18468,6 +18472,14 @@ int main(int argc, char* argv[])
             running = false;
         }
         vrSwap(window);   // (quest: none on Android in VR)
+        // the live debug window's separate SDL window: drawn AFTER the game's GL frame has been swapped. Its own
+        // events are handled in the game's event loop above, never by draining SDL_PollEvent here. Creating or
+        // rendering a second SDL window can make IT the current window (on X11 / Mesa), which sends the game's GL
+        // calls to the wrong window and stalls the loop — so restore the game's GL context immediately afterwards
+        if (debugWindow.open) {
+            debugWindow.drawSeparate(gDebugSnapshot);
+            SDL_GL_MakeCurrent(window, ctx);
+        }
         ++timing.renders;
         if (timing.renders == 1 && std::getenv("HOTD_STARTUP_TIME")) {   // perf: the game's first frame (--auto-start), then the end
             std::printf("startup: the game's first frame at %.0f ms\n", sinceStartMs());

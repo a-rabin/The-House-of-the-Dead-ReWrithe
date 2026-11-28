@@ -287,12 +287,20 @@ void DebugWindow::drawOverlay(const DebugSnapshot& s, int windowWidth, int windo
         if (!overlayInit_)
             return;
         overlay_.translate = false;   // the debug text is not translated
-        overlay_.setStyle(190, 235, 235, 220);
+        overlay_.setStyle(150, 235, 235, 220);
     }
+    // a compact corner panel: at scale 1 the 8x8 font keeps it a few hundred pixels wide, so it never covers the
+    // game. The separate window carries the long lines (its own, larger viewport)
     std::vector<std::string> lines = panelLines(s);
-    lines.insert(lines.begin(), "=== " + panelTitle() + " (live debug) ===");
-    overlay_.setText(lines, windowHeight >= 720 ? 2 : 1);
-    overlay_.draw(windowWidth, windowHeight);
+    lines.insert(lines.begin(), "=== " + panelTitle() + " ===");
+    if (lines.size() > 12)
+        lines.resize(12);
+    for (std::string& l : lines)
+        if (l.size() > 56)
+            l.resize(56);   // keep the panel inside a 992px game window (56 * 8 = 448 px)
+    overlay_.setText(lines, 1);
+    // the top-right corner, leaving the HUD (top-left) and most of the picture alone
+    overlay_.drawAnchored(windowWidth, windowHeight, float(windowWidth) - 8.0f, 8.0f, 1.0f, 0.0f);
 }
 
 void DebugWindow::shutdownOverlay()
